@@ -7,7 +7,9 @@ const ProductSchema = new Schema({
   price: { type: Number, required: true, min: 0 },
   category: { type: Schema.Types.ObjectId, ref: "Category", required: true },
   stockQuantity: { type: Number, required: true, min: 0 }, // Track stock
-  createdAt: { type: Date, default: Date.now }
+  createdAt: { type: Date, default: Date.now },
+  purchaseCount: { type: Number, default: 0 },
+  commentCount: { type: Number, default: 0 }
 });
 
 const Product = mongoose.model("Product", ProductSchema);
