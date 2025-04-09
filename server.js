@@ -1,10 +1,16 @@
 require('./config/db');
-const app = require('express')();
-const port = process.env.PORT || 5000;
+const express = require('express');
+const app = express();
+const http = require('http');
+const server = http.createServer(app);
+const { Server } = require('socket.io');
+const io = new Server(server); // Tạo server Socket.IO
 
+const port = process.env.PORT || 5000;
 const bodyParser = require('express').json;
 app.use(bodyParser());
 
+// Các router
 const UserRouter = require('./api/User');
 const CategoryRouter = require('./api/Category');
 const ProductRouter = require('./api/Product');
@@ -27,6 +33,39 @@ app.use('/review', ReviewRouter);
 app.use('/product-features', ProductFeaturesRouter);
 app.use('/promotion', PromotionRouter);
 
-app.listen(port, () => {
+// Model Notification
+const Notification = require('./models/Notification');
+
+// Xử lý Socket.IO
+io.on('connection', (socket) => {
+  console.log('A user connected:', socket.id);
+
+  // Gửi thông báo cho user cụ thể
+  socket.on('join', (userId) => {
+    socket.join(userId); // Tham gia room của user
+    console.log(`User ${userId} joined room`);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('User disconnected:', socket.id);
+  });
+});
+
+// Hàm gửi thông báo
+const sendNotification = async (userId, message, type) => {
+  const notification = new Notification({
+    userId,
+    message,
+    type,
+    createdAt: new Date()
+  });
+  await notification.save();
+  io.to(userId).emit('notification', notification); // Gửi thông báo đến user cụ thể
+};
+
+// Gắn hàm gửi thông báo vào global để sử dụng trong các router
+global.sendNotification = sendNotification;
+
+server.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
