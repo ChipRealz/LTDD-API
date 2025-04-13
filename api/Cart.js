@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Cart = require('../models/Cart');
 const Product = require('../models/Product');
-const authMiddleware = require('../middleware/auth'); // Giả sử có middleware để xác thực JWT
+const authMiddleware = require('../middleware/auth');
 
 // Lấy giỏ hàng của người dùng
 router.get('/', authMiddleware, async (req, res) => {

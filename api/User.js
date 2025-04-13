@@ -19,8 +19,9 @@ if (!process.env.AUTH_EMAIL || !process.env.AUTH_PASS) {
 
 // Configure Nodemailer
 const transporter = nodemailer.createTransport({
-  host: "smtp.ethereal.email",
-  port: 587,
+  host: 'smtp.gmail.com', // Explicitly specify Gmail's SMTP host
+  port: 587,              // Use port 587 for TLS
+  secure: false,          // Use TLS (STARTTLS) on port 587
   auth: {
     user: process.env.AUTH_EMAIL,
     pass: process.env.AUTH_PASS,
