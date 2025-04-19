@@ -36,15 +36,16 @@ transporter.verify((error) => {
 // Signup Route
 router.post("/signup", async (req, res) => {
   try {
-    let { name, email, password, dateOfBirth } = req.body;
+    let { name, email, password, dateOfBirth, role } = req.body;
     if (!name || !email || !password || !dateOfBirth) {
-      return res.status(400).json({ status: "FAILED", message: "All fields are required!" });
+      return res.status(400).json({ status: "FAILED", message: "All required fields must be provided!" });
     }
 
     name = name.trim();
     email = email.trim();
     password = password.trim();
     dateOfBirth = dateOfBirth.trim();
+    role = role ? role.trim() : "user";
 
     if (!/^[a-zA-Z ]*$/.test(name)) return res.status(400).json({ status: "FAILED", message: "Invalid name format!" });
     if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email)) {
@@ -52,12 +53,15 @@ router.post("/signup", async (req, res) => {
     }
     if (isNaN(new Date(dateOfBirth).getTime())) return res.status(400).json({ status: "FAILED", message: "Invalid date of birth!" });
     if (password.length < 8) return res.status(400).json({ status: "FAILED", message: "Password must be at least 8 characters!" });
+    if (!["user", "manager", "admin"].includes(role)) {
+      return res.status(400).json({ status: "FAILED", message: "Invalid role!" });
+    }
 
     const existingUser = await User.findOne({ email });
     if (existingUser) return res.status(400).json({ status: "FAILED", message: "Email already registered!" });
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const newUser = new User({ name, email, password: hashedPassword, dateOfBirth, verified: false });
+    const newUser = new User({ name, email, password: hashedPassword, dateOfBirth, verified: false, role });
 
     const savedUser = await newUser.save();
     sendVerificationEmail(savedUser, res);
@@ -129,29 +133,38 @@ router.get("/verified", (req, res) => {
 
 // Signin Route
 router.post("/signin", async (req, res) => {
-    try {
-      let { email, password } = req.body;
-      if (!email || !password) {
-        return res.status(400).json({ status: "FAILED", message: "All fields are required!" });
-      }
-  
-      email = email.trim();
-      password = password.trim();
-  
-      const user = await User.findOne({ email });
-      if (!user) return res.status(400).json({ status: "FAILED", message: "User not found!" });
-  
-      const isMatch = await bcrypt.compare(password, user.password);
-      if (!isMatch) return res.status(400).json({ status: "FAILED", message: "Invalid credentials!" });
-  
-      // Send OTP Verification Email
-      sendOTPVerificationEmail(user, res);
-      
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ status: "FAILED", message: "Internal server error!" });
+  try {
+    let { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ status: "FAILED", message: "All fields are required!" });
     }
-  });
+    const savedUser = await newUser.save();
+
+    const managers = await User.find({ role: "manager" });
+    for (const manager of managers) {
+      await global.sendNotification(
+        manager._id,
+        `New user registered: ${savedUser.email}`,
+        "user_signup"
+      );
+    }
+    
+    email = email.trim();
+    password = password.trim();
+
+    const user = await User.findOne({ email });
+    if (!user) return res.status(400).json({ status: "FAILED", message: "User not found!" });
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) return res.status(400).json({ status: "FAILED", message: "Invalid credentials!" });
+
+    // Send OTP for verification
+    sendOTPVerificationEmail(user, res);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ status: "FAILED", message: "Internal server error!" });
+  }
+});
   
 
 // Request Password Reset
@@ -290,43 +303,43 @@ const sendOTPVerificationEmail = async ({ _id, email }, res) => {
 }
 
 router.post("/verifyOTP", async (req, res) => {
-    try {
-        const { userId, otp } = req.body;
+  try {
+    const { userId, otp } = req.body;
 
-        if (!userId || !otp) {
-            return res.status(400).json({ status: "FAILED", message: "All fields are required!" });
-        }
-
-        const user = await User.findById(userId);
-        if (!user) return res.status(400).json({ status: "FAILED", message: "User not found!" });
-
-        const otpVerification = await UserOTPVerification.findOne({ userId });
-        if (!otpVerification) return res.status(400).json({ status: "FAILED", message: "Invalid OTP request!" });
-        if (Date.now() > otpVerification.expiredAt) return res.status(400).json({ status: "FAILED", message: "OTP expired!" });
-
-        if (otp !== otpVerification.otp) return res.status(400).json({ status: "FAILED", message: "Invalid OTP!" });
-
-        // Mark user as verified
-        await User.updateOne({ _id: userId }, { verified: true });
-        await UserOTPVerification.deleteOne({ userId });
-
-        // Generate JWT token
-        const token = jwt.sign(
-            { userId: user._id, email: user.email },
-            process.env.JWT_SECRET,
-            { expiresIn: "7d" }
-        );
-
-        res.status(200).json({
-            status: "SUCCESS",
-            message: "OTP verified successfully!",
-            token, // Send the JWT token in the response
-        });
-
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ status: "FAILED", message: "Internal server error!" });
+    if (!userId || !otp) {
+      return res.status(400).json({ status: "FAILED", message: "All fields are required!" });
     }
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(400).json({ status: "FAILED", message: "User not found!" });
+
+    const otpVerification = await UserOTPVerification.findOne({ userId });
+    if (!otpVerification) return res.status(400).json({ status: "FAILED", message: "Invalid OTP request!" });
+    if (Date.now() > otpVerification.expiredAt) return res.status(400).json({ status: "FAILED", message: "OTP expired!" });
+
+    if (otp !== otpVerification.otp) return res.status(400).json({ status: "FAILED", message: "Invalid OTP!" });
+
+    // Mark user as verified
+    await User.updateOne({ _id: userId }, { verified: true });
+    await UserOTPVerification.deleteOne({ userId });
+
+    // Generate JWT token with role
+    const token = jwt.sign(
+      { userId: user._id, email: user.email, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    res.status(200).json({
+      status: "SUCCESS",
+      message: "OTP verified successfully!",
+      token,
+      role: user.role, // Include role in response
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ status: "FAILED", message: "Internal server error!" });
+  }
 });
 
 
@@ -347,6 +360,16 @@ router.post("/resendOTPVerification", async (req, res) => {
             message: error.message,
         });
     }
+});
+
+router.get("/users", verifyToken, restrictTo("manager", "admin"), async (req, res) => {
+  try {
+    const users = await User.find().select("-password");
+    res.status(200).json({ status: "SUCCESS", data: users });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ status: "FAILED", message: "Internal server error!" });
+  }
 });
 
 module.exports = router;
