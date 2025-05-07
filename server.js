@@ -24,6 +24,8 @@ const ReviewRouter = require('./api/Review');
 const ProductFeaturesRouter = require('./api/ProductFeatures');
 const PromotionRouter = require('./api/Promotion');
 const AdminRouter = require('./api/Admin');
+const ChatbotRouter = require('./api/Chatbot');
+const AdminChatbotRouter = require('./api/AdminChatbot');
 
 app.use('/user', UserRouter);
 app.use('/category', CategoryRouter);
@@ -36,6 +38,8 @@ app.use('/review', ReviewRouter);
 app.use('/product-features', ProductFeaturesRouter);
 app.use('/promotion', PromotionRouter);
 app.use('/admin', AdminRouter);
+app.use('/chatbot', ChatbotRouter);
+app.use('/admin/chatbot', AdminChatbotRouter);
 
 // Model Notification
 const Notification = require('./models/Notification');

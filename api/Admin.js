@@ -8,6 +8,7 @@ const PasswordReset = require("./../models/AdminPasswordReset");
 const nodemailer = require("nodemailer");
 const { v4: uuidv4 } = require("uuid");
 const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
 
 // Ensure environment variables are set
 if (!process.env.AUTH_EMAIL || !process.env.AUTH_PASS) {
@@ -163,10 +164,18 @@ router.post("/verifyOTP", async (req, res) => {
 
     await AdminOTPVerification.deleteOne({ adminId });
 
+    // Generate JWT token
+    const token = jwt.sign(
+      { adminId: admin._id, email: admin.email },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
     res.status(200).json({
       status: "SUCCESS",
       message: "OTP verified successfully!",
-      adminId: admin._id
+      adminId: admin._id,
+      token
     });
   } catch (error) {
     console.error("Error in verifyOTP:", error);
