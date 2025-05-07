@@ -5,10 +5,12 @@ const http = require('http');
 const server = http.createServer(app);
 const { Server } = require('socket.io');
 const io = new Server(server); // Tạo server Socket.IO
+const cors = require('cors');
 
 const port = process.env.PORT || 5000;
 const bodyParser = require('express').json;
 app.use(bodyParser());
+app.use(cors());
 
 // Các router
 const UserRouter = require('./api/User');
@@ -21,6 +23,7 @@ const OrderHistoryRouter = require('./api/OrderHistory');
 const ReviewRouter = require('./api/Review');
 const ProductFeaturesRouter = require('./api/ProductFeatures');
 const PromotionRouter = require('./api/Promotion');
+const AdminRouter = require('./api/Admin');
 
 app.use('/user', UserRouter);
 app.use('/category', CategoryRouter);
@@ -32,6 +35,7 @@ app.use('/order-history', OrderHistoryRouter);
 app.use('/review', ReviewRouter);
 app.use('/product-features', ProductFeaturesRouter);
 app.use('/promotion', PromotionRouter);
+app.use('/admin', AdminRouter);
 
 // Model Notification
 const Notification = require('./models/Notification');

@@ -63,7 +63,7 @@ router.get("/:productId", async (req, res) => {
   }
 });
 
-// Add new product (unchanged)
+// Add new product
 router.post("/", async (req, res) => {
   try {
     const { name, description, price, category, stockQuantity } = req.body;
@@ -87,7 +87,7 @@ router.post("/", async (req, res) => {
   }
 });
 
-// Update product details (unchanged)
+// Update product details
 router.patch("/:productId", async (req, res) => {
   try {
     const updatedProduct = await Product.findByIdAndUpdate(
@@ -104,13 +104,27 @@ router.patch("/:productId", async (req, res) => {
   }
 });
 
-// Delete product (unchanged)
+// Delete product
 router.delete("/:productId", async (req, res) => {
   try {
     const removedProduct = await Product.findByIdAndDelete(req.params.productId);
     if (!removedProduct) return res.status(404).json({ message: "Product not found" });
 
     res.json({ message: "Product deleted successfully", product: removedProduct });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get("/top-selling", async (req, res) => {
+  try {
+    const { limit = 10 } = req.query; // Default to top 10 products
+    const products = await Product.find()
+      .sort({ purchaseCount: -1 }) // Sort by purchaseCount in descending order
+      .limit(Number(limit))
+      .populate("category");
+
+    res.json(products);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
