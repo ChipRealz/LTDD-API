@@ -8,11 +8,8 @@ const UserSchema = new Schema({
   dateOfBirth: Date,
   verified: Boolean,
   points: { type: Number, default: 0 },
-  role: {
-    type: String,
-    enum: ["user", "manager", "admin"],
-    default: "user",
-  },
+  image: { type: String, trim: true }, // Optional field for Cloudinary image URL
+  address: { type: String, trim: true } // Optional field for user address
 });
 
 const User = mongoose.model("User", UserSchema);

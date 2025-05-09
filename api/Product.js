@@ -1,37 +1,42 @@
 const express = require("express");
 const router = express.Router();
 const Product = require("../models/Product");
+const cloudinary = require('cloudinary').v2;
+const multer = require('multer');
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const Admin = require('../models/Admin');
+
+// Configure Cloudinary storage for multer
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'products',
+    allowed_formats: ['jpg', 'png', 'jpeg'],
+  },
+});
+
+const upload = multer({ storage });
 
 // Get all products with search and filter functionality
 router.get("/", async (req, res) => {
   try {
-    // Extract query parameters for search and filtering
     const { search, category, minPrice, maxPrice, sortBy } = req.query;
-
-    // Build the query object
     let query = {};
 
-    // Search by product name (case-insensitive)
     if (search) {
-      query.name = { $regex: search, $options: "i" }; // 'i' for case-insensitive
+      query.name = { $regex: search, $options: "i" };
     }
 
-    // Filter by category (assuming category is an ObjectId or name)
     if (category) {
-      query.category = category; // If category is an ObjectId
-      // If category is a name, you'd need to fetch the category ID first:
-      // const categoryDoc = await Category.findOne({ name: category });
-      // if (categoryDoc) query.category = categoryDoc._id;
+      query.category = category;
     }
 
-    // Filter by price range
     if (minPrice || maxPrice) {
       query.price = {};
       if (minPrice) query.price.$gte = Number(minPrice);
       if (maxPrice) query.price.$lte = Number(maxPrice);
     }
 
-    // Sorting logic (e.g., by price or name)
     let sortOption = {};
     if (sortBy) {
       if (sortBy === "price_asc") sortOption.price = 1;
@@ -40,9 +45,8 @@ router.get("/", async (req, res) => {
       if (sortBy === "name_desc") sortOption.name = -1;
     }
 
-    // Execute the query with population, sorting, and filtering
     const products = await Product.find(query)
-      .populate("category") // Populate category details
+      .populate("category")
       .sort(sortOption);
 
     res.json(products);
@@ -51,7 +55,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-// Get specific product by ID (for viewing product details)
+// Get specific product by ID
 router.get("/:productId", async (req, res) => {
   try {
     const product = await Product.findById(req.params.productId).populate("category");
@@ -63,8 +67,8 @@ router.get("/:productId", async (req, res) => {
   }
 });
 
-// Add new product
-router.post("/", async (req, res) => {
+// Add new product with image upload
+router.post("/", upload.single('image'), async (req, res) => {
   try {
     const { name, description, price, category, stockQuantity } = req.body;
 
@@ -72,15 +76,31 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ message: "Name, price, and category are required." });
     }
 
-    const product = new Product({
+    const productData = {
       name,
       description,
       price,
       category,
       stockQuantity: stockQuantity || 0,
-    });
+    };
 
+    // If an image was uploaded, add the Cloudinary URL to product data
+    if (req.file) {
+      productData.image = req.file.path; // Cloudinary URL
+    }
+
+    const product = new Product(productData);
     const savedProduct = await product.save();
+    
+    // Send notification to admin (optional, assuming admin user ID exists)
+    if (global.sendNotification) {
+      // Find an admin user to send notification to
+      const admin = await Admin.findOne();
+      if (admin) {
+        global.sendNotification(admin._id, `New product added: ${name}`, 'post');
+      }
+    }
+
     res.status(201).json(savedProduct);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -88,11 +108,18 @@ router.post("/", async (req, res) => {
 });
 
 // Update product details
-router.patch("/:productId", async (req, res) => {
+router.patch("/:productId", upload.single('image'), async (req, res) => {
   try {
+    const updateData = { ...req.body };
+
+    // If a new image is uploaded, update the image URL
+    if (req.file) {
+      updateData.image = req.file.path;
+    }
+
     const updatedProduct = await Product.findByIdAndUpdate(
       req.params.productId,
-      { $set: req.body },
+      { $set: updateData },
       { new: true, runValidators: true }
     ).populate("category");
 
@@ -110,17 +137,24 @@ router.delete("/:productId", async (req, res) => {
     const removedProduct = await Product.findByIdAndDelete(req.params.productId);
     if (!removedProduct) return res.status(404).json({ message: "Product not found" });
 
+    // Optionally, delete the image from Cloudinary if it exists
+    if (removedProduct.image) {
+      const publicId = removedProduct.image.split('/').pop().split('.')[0];
+      await cloudinary.uploader.destroy(`products/${publicId}`);
+    }
+
     res.json({ message: "Product deleted successfully", product: removedProduct });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
+// Get top-selling products
 router.get("/top-selling", async (req, res) => {
   try {
-    const { limit = 10 } = req.query; // Default to top 10 products
+    const { limit = 10 } = req.query;
     const products = await Product.find()
-      .sort({ purchaseCount: -1 }) // Sort by purchaseCount in descending order
+      .sort({ purchaseCount: -1 })
       .limit(Number(limit))
       .populate("category");
 

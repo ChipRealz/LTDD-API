@@ -6,7 +6,8 @@ const ProductSchema = new Schema({
   description: { type: String, maxlength: 1000 },
   price: { type: Number, required: true, min: 0 },
   category: { type: Schema.Types.ObjectId, ref: "Category", required: true },
-  stockQuantity: { type: Number, required: true, min: 0 }, // Track stock
+  stockQuantity: { type: Number, required: true, min: 0 },
+  image: { type: String, trim: true }, 
   createdAt: { type: Date, default: Date.now },
   purchaseCount: { type: Number, default: 0 },
   commentCount: { type: Number, default: 0 }
