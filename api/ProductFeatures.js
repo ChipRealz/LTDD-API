@@ -96,12 +96,13 @@ router.get("/stats/:productId", async (req, res) => {
     const purchaseCount = await Order.countDocuments({
       "items.productId": req.params.productId,
     });
+    const reviewCount = await Review.countDocuments({ productId: req.params.productId });
     const commentCount = await Review.countDocuments({
       productId: req.params.productId,
       comment: { $exists: true, $ne: "" }
     });
 
-    res.json({ purchaseCount, commentCount });
+    res.json({ purchaseCount, reviewCount, commentCount });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
