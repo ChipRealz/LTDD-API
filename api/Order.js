@@ -78,10 +78,10 @@ router.post('/', authMiddleware, async (req, res) => {
       paymentMethod,
       shippingInfo,
       note: note || '',
-      status: 'New',
+      status: 'NEW',
       orderNumber: `ORD${Date.now()}${Math.floor(Math.random() * 1000)}`,
       statusHistory: [{
-        status: 'New',
+        status: 'NEW',
         timestamp: new Date(),
         note: 'Order placed successfully'
       }]
@@ -104,10 +104,10 @@ router.post('/', authMiddleware, async (req, res) => {
     setTimeout(async () => {
       try {
         const currentOrder = await Order.findById(order._id);
-        if (currentOrder && currentOrder.status === 'New') {
-          currentOrder.status = 'Confirmed';
+        if (currentOrder && currentOrder.status === 'NEW') {
+          currentOrder.status = 'CONFIRMED';
           currentOrder.statusHistory.push({
-            status: 'Confirmed',
+            status: 'CONFIRMED',
             timestamp: new Date(),
             note: 'Order automatically confirmed after 30 minutes'
           });
@@ -252,7 +252,7 @@ router.get('/my-orders/:id', authMiddleware, async (req, res) => {
 router.get('/status/:status', authMiddleware, async (req, res) => {
   try {
     const { status } = req.params;
-    const validStatuses = ['New', 'Confirmed', 'Preparing', 'Delivering', 'Delivered', 'Canceled', 'CancelRequested'];
+    const validStatuses = ['NEW', 'CONFIRMED', 'PREPARING', 'DELIVERING', 'DELIVERED', 'CANCELED', 'CANCELREQUESTED'];
 
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
@@ -307,8 +307,8 @@ router.put('/cancel/:id', authMiddleware, async (req, res) => {
     const timeDiff = now - order.createdAt;
     const timeLimit = 30 * 60 * 1000; // 30 minutes
 
-    if (timeDiff <= timeLimit && order.status === 'New') {
-      order.status = 'Canceled';
+    if (timeDiff <= timeLimit && order.status === 'NEW') {
+      order.status = 'CANCELED';
 
       // Restore product stock
       for (const item of order.items) {
@@ -326,8 +326,8 @@ router.put('/cancel/:id', authMiddleware, async (req, res) => {
       });
     }
 
-    if (order.status === 'Preparing') {
-      order.status = 'CancelRequested';
+    if (order.status === 'PREPARING') {
+      order.status = 'CANCELREQUESTED';
       await order.save();
       
       return res.status(200).json({
@@ -411,7 +411,7 @@ router.put('/admin/order/:id', adminAuthMiddleware, async (req, res) => {
       });
     }
 
-    const validStatuses = ['New', 'Confirmed', 'Preparing', 'Delivering', 'Delivered', 'Canceled', 'CancelRequested'];
+    const validStatuses = ['NEW', 'CONFIRMED', 'PREPARING', 'DELIVERING', 'DELIVERED', 'CANCELED', 'CANCELREQUESTED'];
     const { status } = req.body;
 
     if (!validStatuses.includes(status)) {
@@ -421,7 +421,7 @@ router.put('/admin/order/:id', adminAuthMiddleware, async (req, res) => {
       });
     }
 
-    if (order.status === 'Delivered' || order.status === 'Canceled') {
+    if (order.status === 'DELIVERED' || order.status === 'CANCELED') {
       return res.status(400).json({
         success: false,
         message: `Order is already ${order.status}`
@@ -429,7 +429,7 @@ router.put('/admin/order/:id', adminAuthMiddleware, async (req, res) => {
     }
 
     // Handle status changes
-    if (status === 'Canceled' && order.status !== 'CancelRequested') {
+    if (status === 'CANCELED' && order.status !== 'CANCELREQUESTED') {
       // Restore product stock when canceling
       for (const item of order.items) {
         await Product.findByIdAndUpdate(item.productId._id, {
@@ -439,7 +439,7 @@ router.put('/admin/order/:id', adminAuthMiddleware, async (req, res) => {
     }
 
     order.status = status;
-    if (status === 'Delivered') {
+    if (status === 'DELIVERED') {
       order.deliveredAt = new Date();
     }
     order.statusHistory.push({
@@ -475,7 +475,7 @@ router.put('/admin/order/:id', adminAuthMiddleware, async (req, res) => {
 router.put('/status/:orderId', authMiddleware, async (req, res) => {
   try {
     const { status, note } = req.body;
-    const validStatuses = ['New', 'Confirmed', 'Preparing', 'Delivering', 'Delivered', 'Canceled', 'CancelRequested'];
+    const validStatuses = ['NEW', 'CONFIRMED', 'PREPARING', 'DELIVERING', 'DELIVERED', 'CANCELED', 'CANCELREQUESTED'];
     
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
@@ -501,22 +501,22 @@ router.put('/status/:orderId', authMiddleware, async (req, res) => {
     }
 
     // Handle cancellation logic
-    if (status === 'Canceled') {
+    if (status === 'CANCELED') {
       const now = new Date();
       const timeDiff = now - order.createdAt;
       const timeLimit = 30 * 60 * 1000; // 30 minutes
 
-      if (timeDiff > timeLimit && order.status === 'New') {
+      if (timeDiff > timeLimit && order.status === 'NEW') {
         return res.status(400).json({
           success: false,
           message: 'Cannot cancel order after 30 minutes'
         });
       }
 
-      if (order.status === 'Preparing') {
-        order.status = 'CancelRequested';
+      if (order.status === 'PREPARING') {
+        order.status = 'CANCELREQUESTED';
         order.statusHistory.push({
-          status: 'CancelRequested',
+          status: 'CANCELREQUESTED',
           timestamp: new Date(),
           note: note || 'Cancellation requested by customer'
         });
@@ -554,16 +554,16 @@ router.put('/status/:orderId', authMiddleware, async (req, res) => {
   }
 });
 
-// Run every minute to auto-confirm orders older than 1 minute (for quick testing)
-cron.schedule('* * * * *', async () => {
-  const oneMinAgo = new Date(Date.now() - 1 * 60 * 1000);
-  const orders = await OrderModel.find({ status: 'New', createdAt: { $lte: oneMinAgo } });
+// Run every 5 minutes to auto-change orders from 'NEW' to 'SUCCESS' after 30 minutes
+cron.schedule('*/5 * * * *', async () => {
+  const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000);
+  const orders = await OrderModel.find({ status: 'NEW', createdAt: { $lte: thirtyMinsAgo } });
   for (const order of orders) {
-    order.status = 'Confirmed';
+    order.status = 'SUCCESS';
     order.statusHistory.push({
-      status: 'Confirmed',
+      status: 'SUCCESS',
       timestamp: new Date(),
-      note: 'Order automatically confirmed after 1 minute (test mode)'
+      note: 'Order automatically marked as SUCCESS after 30 minutes'
     });
     await order.save();
   }
