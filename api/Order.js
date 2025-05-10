@@ -10,9 +10,10 @@ const { adminAuthMiddleware } = require('./Admin');
 
 
 // CREATE ORDER / CHECKOUT
+// ... existing code ...
 router.post('/', authMiddleware, async (req, res) => {
   try {
-    const { paymentMethod, shippingInfo, note } = req.body;
+    const { paymentMethod, shippingInfo, note, promotionCode, usePoints } = req.body;
 
     if (!paymentMethod || !shippingInfo) {
       return res.status(400).json({
@@ -70,16 +71,76 @@ router.post('/', authMiddleware, async (req, res) => {
       });
     }
 
-    // Create the order with initial status
+    // --- DISCOUNT LOGIC ---
+    let discount = 0;
+    let discountType = null;
+    let appliedCode = null;
+    let discountSource = null;
+    let discountAmount = 0;
+    let finalAmount = totalAmount;
+
+    // 1. Check for promotion
+    if (promotionCode) {
+      const Promotion = require('../models/Promotion');
+      const now = new Date();
+      const promo = await Promotion.findOne({
+        code: promotionCode,
+        expiresAt: { $gt: now },
+        $or: [ { userId: req.user.userId }, { userId: null } ]
+      });
+      if (!promo) {
+        return res.status(400).json({ success: false, message: 'Invalid or expired promotion code' });
+      }
+      if (promo.minOrderValue && totalAmount < promo.minOrderValue) {
+        return res.status(400).json({ success: false, message: 'Order does not meet minimum value for promotion' });
+      }
+      discount = promo.discount;
+      discountType = promo.type;
+      appliedCode = promo.code;
+      discountSource = 'promotion';
+      // If user-specific, delete after use
+      if (promo.userId) {
+        await Promotion.deleteOne({ _id: promo._id });
+      }
+    }
+
+    // 2. Apply discount
+    if (discount) {
+      if (discountType === 'percent') {
+        discountAmount = totalAmount * (discount / 100);
+        finalAmount = totalAmount - discountAmount;
+      } else if (discountType === 'fixed') {
+        discountAmount = discount;
+        finalAmount = Math.max(0, totalAmount - discountAmount);
+      }
+    }
+
+    // 3. Apply points
+    if (usePoints) {
+      const User = require('../models/User');
+      const user = await User.findById(req.user.userId);
+      if (user.points < usePoints) return res.status(400).json({ success: false, message: 'Not enough points' });
+      discountSource = discountSource ? discountSource + '+points' : 'points';
+      discountAmount += Number(usePoints);
+      finalAmount = Math.max(0, finalAmount - Number(usePoints));
+      await User.findByIdAndUpdate(req.user.userId, { $inc: { points: -Number(usePoints) } });
+    }
+
+    // --- END DISCOUNT LOGIC ---
+
+    // Create the order with discount info
     const order = await Order.create({
       userId: req.user.userId,
       items,
-      totalAmount,
+      totalAmount: finalAmount,
       paymentMethod,
       shippingInfo,
       note: note || '',
       status: 'NEW',
       orderNumber: `ORD${Date.now()}${Math.floor(Math.random() * 1000)}`,
+      discount: discountAmount || 0,
+      discountCode: appliedCode || null,
+      discountSource: discountSource || null,
       statusHistory: [{
         status: 'NEW',
         timestamp: new Date(),
@@ -137,7 +198,7 @@ router.post('/', authMiddleware, async (req, res) => {
     });
   }
 });
-
+// ... existing code ...
 // GET MY ORDERS
 router.get('/my-orders', authMiddleware, async (req, res) => {
   try {

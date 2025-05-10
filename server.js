@@ -32,6 +32,7 @@ const AdminRouter = require('./api/Admin');
 const ChatbotRouter = require('./api/Chatbot');
 const AdminChatbotRouter = require('./api/AdminChatbot');
 const OrderRouter = require('./api/Order');
+const UserPromotionRouter = require('./api/UserPromotion');
 
 app.use('/user', UserRouter);
 app.use('/category', CategoryRouter);
@@ -44,6 +45,7 @@ app.use('/admin', AdminRouter);
 app.use('/chatbot', ChatbotRouter);
 app.use('/admin/chatbot', AdminChatbotRouter);
 app.use('/order', OrderRouter);
+app.use('/userpromotion', UserPromotionRouter);
 
 // Model Notification
 const Notification = require('./models/Notification');
