@@ -67,11 +67,43 @@ router.get('/my-reviews', authMiddleware, async (req, res) => {
   }
 });
 
-// Lấy danh sách đánh giá của sản phẩm
+// Get only reviews (with rating) for a product
 router.get('/:productId', async (req, res) => {
   try {
-    const reviews = await Review.find({ productId: req.params.productId }).populate('userId', 'name');
+    const reviews = await Review.find({ productId: req.params.productId, rating: { $exists: true, $ne: null } })
+      .populate('userId', 'name');
     res.json(reviews);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Add a comment to a product (no rating required)
+router.post('/comment/:productId', authMiddleware, async (req, res) => {
+  try {
+    const { comment } = req.body;
+    const { productId } = req.params;
+    if (!comment || !comment.trim()) {
+      return res.status(400).json({ message: 'Comment is required' });
+    }
+    const review = new Review({
+      userId: req.user.userId,
+      productId,
+      comment
+    });
+    await review.save();
+    res.status(201).json({ success: true, review });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get only comments (no rating) for a product
+router.get('/comment/:productId', async (req, res) => {
+  try {
+    const comments = await Review.find({ productId: req.params.productId, rating: { $exists: false }, comment: { $exists: true, $ne: '' } })
+      .populate('userId', 'name');
+    res.json(comments);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
