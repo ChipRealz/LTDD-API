@@ -2,9 +2,10 @@
 const express = require("express");
 const router = express.Router();
 const Favorite = require("../models/Favorite");
-const ViewedProduct = require("../models/ViewedProduct"); // Update this import
+const ViewedProduct = require("../models/ViewedProduct");
 const Product = require("../models/Product");
 const Review = require("../models/Review");
+const Order = require("../models/Order");
 const authMiddleware = require("../middleware/auth");
 
 // Thêm sản phẩm yêu thích
@@ -97,12 +98,9 @@ router.get("/stats/:productId", async (req, res) => {
     });
     const commentCount = await Review.countDocuments({
       productId: req.params.productId,
+      comment: { $exists: true, $ne: "" }
     });
 
-    await Product.findByIdAndUpdate(req.params.productId, {
-      purchaseCount,
-      commentCount,
-    });
     res.json({ purchaseCount, commentCount });
   } catch (err) {
     res.status(500).json({ error: err.message });
