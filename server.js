@@ -24,30 +24,26 @@ app.use(cors());
 const UserRouter = require('./api/User');
 const CategoryRouter = require('./api/Category');
 const ProductRouter = require('./api/Product');
-const SaleRouter = require('./api/Sales');
 const CartRouter = require('./api/Cart');
-const CheckoutRouter = require('./api/Checkout');
-const OrderHistoryRouter = require('./api/OrderHistory');
 const ReviewRouter = require('./api/Review');
 const ProductFeaturesRouter = require('./api/ProductFeatures');
 const PromotionRouter = require('./api/Promotion');
 const AdminRouter = require('./api/Admin');
 const ChatbotRouter = require('./api/Chatbot');
 const AdminChatbotRouter = require('./api/AdminChatbot');
+const OrderRouter = require('./api/Order');
 
 app.use('/user', UserRouter);
 app.use('/category', CategoryRouter);
 app.use('/product', ProductRouter);
-app.use('/sale', SaleRouter);
 app.use('/cart', CartRouter);
-app.use('/checkout', CheckoutRouter);
-app.use('/order-history', OrderHistoryRouter);
 app.use('/review', ReviewRouter);
 app.use('/product-features', ProductFeaturesRouter);
 app.use('/promotion', PromotionRouter);
 app.use('/admin', AdminRouter);
 app.use('/chatbot', ChatbotRouter);
 app.use('/admin/chatbot', AdminChatbotRouter);
+app.use('/order', OrderRouter);
 
 // Model Notification
 const Notification = require('./models/Notification');

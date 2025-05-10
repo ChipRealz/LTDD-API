@@ -38,16 +38,29 @@ router.get("/", async (req, res) => {
     }
 
     let sortOption = {};
-    if (sortBy) {
-      if (sortBy === "price_asc") sortOption.price = 1;
-      if (sortBy === "price_desc") sortOption.price = -1;
-      if (sortBy === "name_asc") sortOption.name = 1;
-      if (sortBy === "name_desc") sortOption.name = -1;
-    }
+    if (sortBy === "price_asc") sortOption.price = 1;
+    if (sortBy === "price_desc") sortOption.price = -1;
+    if (sortBy === "name_asc") sortOption.name = 1;
+    if (sortBy === "name_desc") sortOption.name = -1;
 
     const products = await Product.find(query)
       .populate("category")
       .sort(sortOption);
+
+    res.json(products);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get top-selling products
+router.get("/top-selling", async (req, res) => {
+  try {
+    const { limit = 10 } = req.query;
+    const products = await Product.find()
+      .sort({ purchaseCount: -1 })
+      .limit(Number(limit))
+      .populate("category");
 
     res.json(products);
   } catch (err) {
@@ -107,12 +120,12 @@ router.post("/", upload.single('image'), async (req, res) => {
   }
 });
 
-// Update product details
-router.patch("/:productId", upload.single('image'), async (req, res) => {
+// Update product
+router.put("/:productId", upload.single('image'), async (req, res) => {
   try {
-    const updateData = { ...req.body };
+    const { name, description, price, category, stockQuantity } = req.body;
+    const updateData = { name, description, price, category, stockQuantity };
 
-    // If a new image is uploaded, update the image URL
     if (req.file) {
       updateData.image = req.file.path;
     }
@@ -144,21 +157,6 @@ router.delete("/:productId", async (req, res) => {
     }
 
     res.json({ message: "Product deleted successfully", product: removedProduct });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Get top-selling products
-router.get("/top-selling", async (req, res) => {
-  try {
-    const { limit = 10 } = req.query;
-    const products = await Product.find()
-      .sort({ purchaseCount: -1 })
-      .limit(Number(limit))
-      .populate("category");
-
-    res.json(products);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

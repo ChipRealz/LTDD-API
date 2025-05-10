@@ -5,10 +5,14 @@ const Admin = require("./../models/Admin");
 const PendingAdmin = require("./../models/PendingAdmin");
 const AdminOTPVerification = require("./../models/AdminOTPVerification");
 const PasswordReset = require("./../models/AdminPasswordReset");
+const Sale = require("../models/Sales");
+const Order = require("../models/Order");
+const Product = require("../models/Product");
 const nodemailer = require("nodemailer");
 const { v4: uuidv4 } = require("uuid");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const mongoose = require("mongoose");
 
 // Ensure environment variables are set
 if (!process.env.AUTH_EMAIL || !process.env.AUTH_PASS) {
@@ -353,6 +357,290 @@ router.get("/get-all-admins", async (req, res) => {
             message: "Error retrieving admin list" 
         });
     }
+});
+
+// Admin authentication middleware
+const adminAuthMiddleware = async (req, res, next) => {
+  try {
+    const token = req.header('Authorization')?.replace('Bearer ', '');
+    if (!token) {
+      return res.status(401).json({
+        status: "FAILED",
+        message: "No token provided, authorization denied"
+      });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const admin = await Admin.findById(decoded.adminId);
+    if (!admin) {
+      return res.status(401).json({
+        status: "FAILED",
+        message: "Admin not found, authorization denied"
+      });
+    }
+
+    if (!admin.verified) {
+      return res.status(401).json({
+        status: "FAILED",
+        message: "Admin not verified, authorization denied"
+      });
+    }
+
+    req.admin = admin;
+    next();
+  } catch (err) {
+    res.status(401).json({
+      status: "FAILED",
+      message: "Token is not valid",
+      error: err.message
+    });
+  }
+};
+
+// SALES MANAGEMENT
+// Get all sales
+router.get("/sales", adminAuthMiddleware, async (req, res) => {
+  try {
+    const { startDate, endDate, page = 1, limit = 10 } = req.query;
+    const query = {};
+
+    if (startDate && endDate) {
+      query.createdAt = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate)
+      };
+    }
+
+    const sales = await Sale.find(query)
+      .populate("product")
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(parseInt(limit));
+
+    const total = await Sale.countDocuments(query);
+
+    res.json({
+      success: true,
+      sales,
+      total,
+      page: parseInt(page),
+      totalPages: Math.ceil(total / limit)
+    });
+  } catch (err) {
+    res.status(500).json({ 
+      success: false,
+      message: "Error fetching sales",
+      error: err.message 
+    });
+  }
+});
+
+// Get sales statistics
+router.get("/sales/stats", adminAuthMiddleware, async (req, res) => {
+  try {
+    const { period = 'daily' } = req.query;
+    let groupBy;
+
+    switch (period) {
+      case 'daily':
+        groupBy = { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } };
+        break;
+      case 'monthly':
+        groupBy = { $dateToString: { format: "%Y-%m", date: "$createdAt" } };
+        break;
+      case 'yearly':
+        groupBy = { $dateToString: { format: "%Y", date: "$createdAt" } };
+        break;
+      default:
+        groupBy = { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } };
+    }
+
+    const stats = await Sale.aggregate([
+      {
+        $group: {
+          _id: groupBy,
+          totalSales: { $sum: "$totalPrice" },
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+
+    res.json({
+      success: true,
+      stats
+    });
+  } catch (err) {
+    res.status(500).json({ 
+      success: false,
+      message: "Error fetching sales statistics",
+      error: err.message 
+    });
+  }
+});
+
+// Get top selling products
+router.get("/sales/top-products", adminAuthMiddleware, async (req, res) => {
+  try {
+    const { limit = 5 } = req.query;
+    const topProducts = await Sale.aggregate([
+      {
+        $group: {
+          _id: "$product",
+          totalQuantity: { $sum: "$quantity" },
+          totalRevenue: { $sum: "$totalPrice" }
+        }
+      },
+      { $sort: { totalQuantity: -1 } },
+      { $limit: parseInt(limit) },
+      {
+        $lookup: {
+          from: "products",
+          localField: "_id",
+          foreignField: "_id",
+          as: "productDetails"
+        }
+      },
+      { $unwind: "$productDetails" }
+    ]);
+
+    res.json({
+      success: true,
+      topProducts
+    });
+  } catch (err) {
+    res.status(500).json({ 
+      success: false,
+      message: "Error fetching top products",
+      error: err.message 
+    });
+  }
+});
+
+// CASH FLOW MANAGEMENT
+// Get cash flow statistics
+router.get("/cash-flow", adminAuthMiddleware, async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    const matchStage = {};
+
+    if (startDate && endDate) {
+      matchStage.createdAt = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate)
+      };
+    }
+
+    // Get order statistics
+    const orderStats = await Order.aggregate([
+      { $match: matchStage },
+      {
+        $group: {
+          _id: "$status",
+          totalAmount: { $sum: "$totalAmount" },
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // Get sales statistics
+    const salesStats = await Sale.aggregate([
+      { $match: matchStage },
+      {
+        $group: {
+          _id: null,
+          totalSales: { $sum: "$totalPrice" },
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // Calculate cash flow
+    const cashFlow = {
+      orders: {
+        pending: { total: 0, count: 0 },
+        processing: { total: 0, count: 0 },
+        completed: { total: 0, count: 0 },
+        cancelled: { total: 0, count: 0 }
+      },
+      sales: {
+        total: salesStats[0]?.totalSales || 0,
+        count: salesStats[0]?.count || 0
+      }
+    };
+
+    // Map order statistics
+    orderStats.forEach(stat => {
+      switch (stat._id) {
+        case 'New':
+        case 'Confirmed':
+          cashFlow.orders.pending.total += stat.totalAmount;
+          cashFlow.orders.pending.count += stat.count;
+          break;
+        case 'Preparing':
+        case 'Delivering':
+          cashFlow.orders.processing.total += stat.totalAmount;
+          cashFlow.orders.processing.count += stat.count;
+          break;
+        case 'Delivered':
+          cashFlow.orders.completed.total += stat.totalAmount;
+          cashFlow.orders.completed.count += stat.count;
+          break;
+        case 'Canceled':
+          cashFlow.orders.cancelled.total += stat.totalAmount;
+          cashFlow.orders.cancelled.count += stat.count;
+          break;
+      }
+    });
+
+    res.json({
+      success: true,
+      cashFlow
+    });
+  } catch (err) {
+    res.status(500).json({ 
+      success: false,
+      message: "Error fetching cash flow statistics",
+      error: err.message 
+    });
+  }
+});
+
+// Get daily revenue
+router.get("/cash-flow/daily", adminAuthMiddleware, async (req, res) => {
+  try {
+    const { days = 7 } = req.query;
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - parseInt(days));
+
+    const dailyRevenue = await Order.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: startDate },
+          status: { $in: ['Delivered', 'Completed'] }
+        }
+      },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+          revenue: { $sum: "$totalAmount" },
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+
+    res.json({
+      success: true,
+      dailyRevenue
+    });
+  } catch (err) {
+    res.status(500).json({ 
+      success: false,
+      message: "Error fetching daily revenue",
+      error: err.message 
+    });
+  }
 });
 
 module.exports = router;
