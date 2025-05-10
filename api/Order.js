@@ -419,7 +419,7 @@ router.put('/cancel/:id', authMiddleware, async (req, res) => {
 });
 
 // GET ALL ORDERS (ADMIN)
-router.get('/admin/get-all-orders', authMiddleware, async (req, res) => {
+router.get('/admin/get-all-orders', adminAuthMiddleware, async (req, res) => {
   try {
     const { status, page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
     const query = {};

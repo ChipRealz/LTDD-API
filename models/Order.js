@@ -13,13 +13,13 @@ const orderSchema = new mongoose.Schema({
   paymentMethod: { type: String, enum: ['COD', 'WALLET'], required: true },
   status: {
     type: String,
-    enum: ['NEW', 'CONFIRMED', 'DELIVERED', 'CANCELLED'],
+    enum: ['NEW', 'CONFIRMED', 'DELIVERED', 'CANCELLED', 'DELIVERING', 'PREPARING', 'CANCELREQUESTED', 'CANCELED'],
     default: 'NEW'
   },
   statusHistory: [{
     status: {
       type: String,
-      enum: ['NEW', 'CONFIRMED', 'DELIVERED', 'CANCELLED'],
+      enum: ['NEW', 'CONFIRMED', 'DELIVERED', 'CANCELLED', 'DELIVERING', 'PREPARING', 'CANCELREQUESTED', 'CANCELED'],
     },
     timestamp: { type: Date, default: Date.now },
     note: { type: String }
