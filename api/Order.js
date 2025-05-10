@@ -79,10 +79,13 @@ router.post('/', authMiddleware, async (req, res) => {
       orderNumber: `ORD${Date.now()}${Math.floor(Math.random() * 1000)}`
     });
 
-    // Update product stock
+    // Update product stock and purchase count
     for (const item of items) {
       await Product.findByIdAndUpdate(item.productId, {
-        $inc: { stockQuantity: -item.quantity }
+        $inc: { 
+          stockQuantity: -item.quantity,
+          purchaseCount: item.quantity 
+        }
       });
     }
 

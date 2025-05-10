@@ -60,11 +60,20 @@ router.get("/top-selling", async (req, res) => {
     const products = await Product.find()
       .sort({ purchaseCount: -1 })
       .limit(Number(limit))
-      .populate("category");
+      .populate("category")
+      .select('name price image description purchaseCount stockQuantity category');
 
-    res.json(products);
+    res.json({
+      success: true,
+      message: 'Top selling products fetched successfully',
+      products
+    });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ 
+      success: false,
+      message: 'Error fetching top selling products',
+      error: err.message 
+    });
   }
 });
 
