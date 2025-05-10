@@ -6,13 +6,13 @@ const Coupon = require('../models/Coupon');
 const User = require('../models/User');
 const authMiddleware = require('../middleware/auth');
 
-// Thêm đánh giá
+// Add review and reward
 router.post('/:productId', authMiddleware, async (req, res) => {
   try {
     const { rating, comment } = req.body;
     const { productId } = req.params;
 
-    // Kiểm tra xem người dùng đã mua sản phẩm chưa
+    // Check if user has purchased and received the product
     const order = await Order.findOne({
       userId: req.user.userId,
       'items.productId': productId,
@@ -20,10 +20,11 @@ router.post('/:productId', authMiddleware, async (req, res) => {
     });
     if (!order) return res.status(403).json({ message: 'You can only review purchased products' });
 
-    // Kiểm tra xem đã đánh giá chưa
+    // Prevent duplicate reviews
     const existingReview = await Review.findOne({ userId: req.user.userId, productId });
     if (existingReview) return res.status(400).json({ message: 'You already reviewed this product' });
 
+    // Create review
     const review = new Review({
       userId: req.user.userId,
       productId,
@@ -32,21 +33,35 @@ router.post('/:productId', authMiddleware, async (req, res) => {
     });
     await review.save();
 
-    // Tặng mã giảm giá hoặc điểm tích lũy
-    const rewardType = Math.random() > 0.5 ? 'coupon' : 'points';
-    if (rewardType === 'coupon') {
+    // Reward: randomly give coupon or points
+    let reward;
+    if (Math.random() > 0.5) {
+      // Give coupon
       const coupon = new Coupon({
         code: `REVIEW${Date.now()}`,
-        discount: 10, // 10% giảm giá
+        discount: 10, // 10% discount
         userId: req.user.userId,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // Hết hạn sau 7 ngày
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
       });
       await coupon.save();
-      res.status(201).json({ review, reward: { type: 'coupon', coupon } });
+      reward = { type: 'coupon', coupon };
     } else {
-      await User.findByIdAndUpdate(req.user.userId, { $inc: { points: 50 } }); // Tặng 50 điểm
-      res.status(201).json({ review, reward: { type: 'points', amount: 50 } });
+      // Give points
+      await User.findByIdAndUpdate(req.user.userId, { $inc: { points: 50 } });
+      reward = { type: 'points', amount: 50 };
     }
+
+    res.status(201).json({ review, reward });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get all reviews by the current user
+router.get('/my-reviews', authMiddleware, async (req, res) => {
+  try {
+    const reviews = await Review.find({ userId: req.user.userId }).select('productId');
+    res.json(reviews);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

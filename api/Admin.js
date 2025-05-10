@@ -643,4 +643,6 @@ router.get("/cash-flow/daily", adminAuthMiddleware, async (req, res) => {
   }
 });
 
+router.adminAuthMiddleware = adminAuthMiddleware;
+
 module.exports = router;

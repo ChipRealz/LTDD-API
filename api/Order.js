@@ -154,28 +154,30 @@ router.get('/my-orders', authMiddleware, async (req, res) => {
     const orders = await Order
       .find(query)
       .populate('userId', 'name email')
-      .populate('items.productId', 'name price image')
+      .populate({
+        path: 'items.productId',
+        select: 'name price image',
+        model: 'Product'
+      })
       .sort(sortOptions)
       .skip((page - 1) * limit)
       .limit(parseInt(limit));
 
     const total = await Order.countDocuments(query);
 
-    if (!orders || orders.length === 0) {
-      return res.status(200).json({
-        success: true,
-        message: 'No orders found',
-        orders: [],
-        total: 0,
-        page: parseInt(page),
-        totalPages: 0
-      });
-    }
+    // Guarantee the structure: items, and each item.productId is a product object
+    const mappedOrders = orders.map(order => ({
+      ...order.toObject(),
+      items: order.items.map(item => ({
+        ...item,
+        productId: typeof item.productId === 'object' ? item.productId : null
+      }))
+    }));
 
     res.status(200).json({
       success: true,
       message: 'Orders fetched successfully',
-      orders,
+      orders: mappedOrders,
       total,
       page: parseInt(page),
       totalPages: Math.ceil(total / limit)
