@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const Review = require('../models/Review');
 const Order = require('../models/Order');
-const Coupon = require('../models/Coupon');
 const User = require('../models/User');
 const authMiddleware = require('../middleware/auth');
 

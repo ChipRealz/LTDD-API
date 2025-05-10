@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const Promotion = require('../models/Promotion');
-const Coupon = require('../models/Coupon');
 const User = require('../models/User');
 const Order = require('../models/Order');
 const authMiddleware = require('../middleware/auth');
@@ -30,7 +29,6 @@ router.post('/apply', authMiddleware, async (req, res) => {
     // Áp dụng mã giảm giá
     if (code) {
       const promotion = await Promotion.findOne({ code, expiresAt: { $gt: Date.now() } });
-      const coupon = await Coupon.findOne({ code, userId: req.user.userId, expiresAt: { $gt: Date.now() } });
 
       if (promotion) {
         discount = promotion.type === 'percent'
@@ -39,9 +37,6 @@ router.post('/apply', authMiddleware, async (req, res) => {
         if (order.totalAmount < promotion.minOrderValue) {
           return res.status(400).json({ message: 'Order value too low for this promotion' });
         }
-      } else if (coupon) {
-        discount = order.totalAmount * (coupon.discount / 100);
-        await Coupon.deleteOne({ _id: coupon._id }); // Xóa coupon sau khi dùng
       } else {
         return res.status(400).json({ message: 'Invalid or expired code' });
       }

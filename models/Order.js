@@ -11,16 +11,15 @@ const orderSchema = new mongoose.Schema({
   }],
   totalAmount: { type: Number, required: true },
   paymentMethod: { type: String, enum: ['COD', 'WALLET'], required: true },
-  status: { 
-    type: String, 
-    enum: ['New', 'Confirmed', 'Preparing', 'Delivering', 'Delivered', 'Canceled', 'CancelRequested'],
-    default: 'New' 
+  status: {
+    type: String,
+    enum: ['NEW', 'CONFIRMED', 'DELIVERED', 'CANCELLED'],
+    default: 'NEW'
   },
   statusHistory: [{
-    status: { 
-      type: String, 
-      enum: ['New', 'Confirmed', 'Preparing', 'Delivering', 'Delivered', 'Canceled', 'CancelRequested'],
-      required: true 
+    status: {
+      type: String,
+      enum: ['NEW', 'CONFIRMED', 'DELIVERED', 'CANCELLED'],
     },
     timestamp: { type: Date, default: Date.now },
     note: { type: String }

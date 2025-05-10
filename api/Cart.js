@@ -6,9 +6,15 @@ const authMiddleware = require('../middleware/auth');
 
 // Lấy giỏ hàng của người dùng
 router.get('/', authMiddleware, async (req, res) => {
+  if (!req.user || !req.user.userId) {
+    return res.status(401).json({ message: 'Only authenticated users can access cart operations' });
+  }
   try {
-    const cart = await Cart.findOne({ userId: req.user.userId }).populate('items.productId');
-    if (!cart) return res.status(404).json({ message: 'Cart not found' });
+    let cart = await Cart.findOne({ userId: req.user.userId }).populate('items.productId');
+    if (!cart) {
+      cart = new Cart({ userId: req.user.userId, items: [] });
+      await cart.save();
+    }
     res.json(cart);
   } catch (err) {
     res.status(500).json({ error: err.message });
