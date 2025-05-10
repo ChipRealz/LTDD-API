@@ -161,7 +161,7 @@ router.post('/', authMiddleware, async (req, res) => {
     // Clear the cart
     await Cart.deleteOne({ userId: req.user.userId });
 
-    // Schedule automatic order confirmation after 30 minutes
+    // Schedule automatic order status change from NEW to CONFIRMED after 30 minutes
     setTimeout(async () => {
       try {
         const currentOrder = await Order.findById(order._id);
@@ -175,7 +175,7 @@ router.post('/', authMiddleware, async (req, res) => {
           await currentOrder.save();
         }
       } catch (error) {
-        console.error('Error in automatic order confirmation:', error);
+        console.error('Error in automatic order status update:', error);
       }
     }, 30 * 60 * 1000); // 30 minutes
 
@@ -615,16 +615,16 @@ router.put('/status/:orderId', authMiddleware, async (req, res) => {
   }
 });
 
-// Run every 5 minutes to auto-change orders from 'NEW' to 'SUCCESS' after 30 minutes
+// Run every 5 minutes to auto-change orders from 'NEW' to 'CONFIRMED' after 30 minutes
 cron.schedule('*/5 * * * *', async () => {
   const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000);
   const orders = await OrderModel.find({ status: 'NEW', createdAt: { $lte: thirtyMinsAgo } });
   for (const order of orders) {
-    order.status = 'SUCCESS';
+    order.status = 'CONFIRMED';
     order.statusHistory.push({
-      status: 'SUCCESS',
+      status: 'CONFIRMED',
       timestamp: new Date(),
-      note: 'Order automatically marked as SUCCESS after 30 minutes'
+      note: 'Order automatically confirmed after 30 minutes'
     });
     await order.save();
   }
