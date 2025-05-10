@@ -6,6 +6,7 @@ const Product = require('../models/Product');
 const authMiddleware = require('../middleware/auth');
 const cron = require('node-cron');
 const OrderModel = require('../models/Order');
+const { adminAuthMiddleware } = require('./Admin');
 
 
 // CREATE ORDER / CHECKOUT
@@ -396,7 +397,7 @@ router.get('/admin/get-all-orders', authMiddleware, async (req, res) => {
 });
 
 // CHANGE ORDER STATUS (ADMIN)
-router.put('/admin/order/:id', authMiddleware, async (req, res) => {
+router.put('/admin/order/:id', adminAuthMiddleware, async (req, res) => {
   try {
     const order = await Order.findById(req.params.id)
       .populate('items.productId');
@@ -408,7 +409,7 @@ router.put('/admin/order/:id', authMiddleware, async (req, res) => {
       });
     }
 
-    const validStatuses = ['New', 'Confirmed', 'Preparing', 'Delivering', 'Delivered', 'Canceled'];
+    const validStatuses = ['New', 'Confirmed', 'Preparing', 'Delivering', 'Delivered', 'Canceled', 'CancelRequested'];
     const { status } = req.body;
 
     if (!validStatuses.includes(status)) {
@@ -439,6 +440,11 @@ router.put('/admin/order/:id', authMiddleware, async (req, res) => {
     if (status === 'Delivered') {
       order.deliveredAt = new Date();
     }
+    order.statusHistory.push({
+      status,
+      timestamp: new Date(),
+      note: `Status updated to ${status} by admin`
+    });
 
     await order.save();
 
