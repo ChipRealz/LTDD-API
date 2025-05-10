@@ -4,6 +4,8 @@ const Order = require('../models/Order');
 const Cart = require('../models/Cart');
 const Product = require('../models/Product');
 const authMiddleware = require('../middleware/auth');
+const cron = require('node-cron');
+const OrderModel = require('../models/Order');
 
 
 // CREATE ORDER / CHECKOUT
@@ -67,7 +69,7 @@ router.post('/', authMiddleware, async (req, res) => {
       });
     }
 
-    // Create the order
+    // Create the order with initial status
     const order = await Order.create({
       userId: req.user.userId,
       items,
@@ -76,7 +78,12 @@ router.post('/', authMiddleware, async (req, res) => {
       shippingInfo,
       note: note || '',
       status: 'New',
-      orderNumber: `ORD${Date.now()}${Math.floor(Math.random() * 1000)}`
+      orderNumber: `ORD${Date.now()}${Math.floor(Math.random() * 1000)}`,
+      statusHistory: [{
+        status: 'New',
+        timestamp: new Date(),
+        note: 'Order placed successfully'
+      }]
     });
 
     // Update product stock and purchase count
@@ -91,6 +98,24 @@ router.post('/', authMiddleware, async (req, res) => {
 
     // Clear the cart
     await Cart.deleteOne({ userId: req.user.userId });
+
+    // Schedule automatic order confirmation after 30 minutes
+    setTimeout(async () => {
+      try {
+        const currentOrder = await Order.findById(order._id);
+        if (currentOrder && currentOrder.status === 'New') {
+          currentOrder.status = 'Confirmed';
+          currentOrder.statusHistory.push({
+            status: 'Confirmed',
+            timestamp: new Date(),
+            note: 'Order automatically confirmed after 30 minutes'
+          });
+          await currentOrder.save();
+        }
+      } catch (error) {
+        console.error('Error in automatic order confirmation:', error);
+      }
+    }, 30 * 60 * 1000); // 30 minutes
 
     // Populate the response with product details
     const populatedOrder = await Order.findById(order._id)
@@ -438,5 +463,102 @@ router.put('/admin/order/:id', authMiddleware, async (req, res) => {
   }
 });
 
+// UPDATE ORDER STATUS
+router.put('/status/:orderId', authMiddleware, async (req, res) => {
+  try {
+    const { status, note } = req.body;
+    const validStatuses = ['New', 'Confirmed', 'Preparing', 'Delivering', 'Delivered', 'Canceled', 'CancelRequested'];
+    
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid status'
+      });
+    }
+
+    const order = await Order.findById(req.params.orderId);
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    // Check if user is authorized to update this order
+    if (order.userId.toString() !== req.user.userId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized to update this order'
+      });
+    }
+
+    // Handle cancellation logic
+    if (status === 'Canceled') {
+      const now = new Date();
+      const timeDiff = now - order.createdAt;
+      const timeLimit = 30 * 60 * 1000; // 30 minutes
+
+      if (timeDiff > timeLimit && order.status === 'New') {
+        return res.status(400).json({
+          success: false,
+          message: 'Cannot cancel order after 30 minutes'
+        });
+      }
+
+      if (order.status === 'Preparing') {
+        order.status = 'CancelRequested';
+        order.statusHistory.push({
+          status: 'CancelRequested',
+          timestamp: new Date(),
+          note: note || 'Cancellation requested by customer'
+        });
+        await order.save();
+        return res.status(200).json({
+          success: true,
+          message: 'Cancellation request sent to shop',
+          order
+        });
+      }
+    }
+
+    // Update order status
+    order.status = status;
+    order.statusHistory.push({
+      status,
+      timestamp: new Date(),
+      note: note || `Status updated to ${status}`
+    });
+
+    await order.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Order status updated successfully',
+      order
+    });
+  } catch (error) {
+    console.error('Error in update order status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating order status',
+      error: error.message
+    });
+  }
+});
+
+// Run every minute to auto-confirm orders older than 1 minute (for quick testing)
+cron.schedule('* * * * *', async () => {
+  const oneMinAgo = new Date(Date.now() - 1 * 60 * 1000);
+  const orders = await OrderModel.find({ status: 'New', createdAt: { $lte: oneMinAgo } });
+  for (const order of orders) {
+    order.status = 'Confirmed';
+    order.statusHistory.push({
+      status: 'Confirmed',
+      timestamp: new Date(),
+      note: 'Order automatically confirmed after 1 minute (test mode)'
+    });
+    await order.save();
+  }
+});
 
 module.exports = router;
