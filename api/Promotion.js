@@ -5,6 +5,7 @@ const User = require('../models/User');
 const Order = require('../models/Order');
 const authMiddleware = require('../middleware/auth');
 const { adminAuthMiddleware } = require('./Admin');
+const Admin = require('../models/Admin');
 
 // List all promotions (admin only)
 router.get('/', adminAuthMiddleware, async (req, res) => {
@@ -22,6 +23,20 @@ router.post('/create', adminAuthMiddleware, async (req, res) => {
     const { code, discount, type, minOrderValue, expiresAt, userId } = req.body;
     const promotion = new Promotion({ code, discount, type, minOrderValue, expiresAt, userId: userId || null });
     await promotion.save();
+    // Send notification to admin (optional, assuming admin user ID exists)
+    if (global.sendNotification) {
+      const admin = await Admin.findOne();
+      if (admin) {
+        const discountText = type === 'percent' ? `${discount}%` : `${discount} (fixed)`;
+        const minOrderText = minOrderValue ? `Min order: ${minOrderValue}` : 'No min order';
+        const expiresText = expiresAt ? `Expires: ${new Date(expiresAt).toLocaleString()}` : 'No expiry';
+        global.sendNotification(
+          admin._id,
+          `New promotion added: Code: ${code}, Discount: ${discountText}, ${minOrderText}, ${expiresText}`,
+          'promotion'
+        );
+      }
+    }
     res.status(201).json(promotion);
   } catch (err) {
     res.status(500).json({ error: err.message });
