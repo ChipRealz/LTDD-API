@@ -3,10 +3,11 @@ const router = express.Router();
 const Notification = require('../models/Notification');
 const authMiddleware = require('../middleware/auth');
 
-// Lấy tất cả thông báo của user
+// WARNING: This returns all notifications for testing only. Do not use in production!
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    const notifications = await Notification.find({ userId: req.user.userId })
+    // const notifications = await Notification.find({ userId: req.user.userId })
+    const notifications = await Notification.find({})
       .sort({ createdAt: -1 })
       .limit(50);
     res.json(notifications);
