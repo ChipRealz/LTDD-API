@@ -3,6 +3,8 @@ const router = express.Router();
 const { OpenAI } = require('openai');
 const Product = require('../models/Product');
 const authMiddleware = require('../middleware/auth');
+const Promotion = require('../models/Promotion');
+const Order = require('../models/Order');
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -27,6 +29,27 @@ router.post('/', authMiddleware, async (req, res) => {
         status: "FAILED", 
         message: "Message is required" 
       });
+    }
+
+    // Intent detection: Promotion
+    if (/promotion|coupon|discount|sale|deal/i.test(message)) {
+      const now = new Date();
+      const promotions = await Promotion.find({ expiresAt: { $gt: now } });
+      if (promotions.length > 0) {
+        return res.json({
+          status: 'SUCCESS',
+          reply: `Current promotions: ` + promotions.map(p => `${p.code} (${p.type === 'percent' ? p.discount + '%' : p.discount + ' off'}, min order: ${p.minOrderValue}, expires: ${p.expiresAt.toLocaleDateString()})`).join('; '),
+          promotions
+        });
+      } else {
+        return res.json({ status: 'SUCCESS', reply: 'There are no active promotions right now.', promotions: [] });
+      }
+    }
+
+    // Intent detection: Order status
+    if (/order status|where.*order|my order|track.*order/i.test(message)) {
+      // You can enhance this to fetch the latest order for the user
+      return res.json({ status: 'SUCCESS', reply: 'Order status checking is coming soon!' });
     }
 
     // First, try to find relevant products
