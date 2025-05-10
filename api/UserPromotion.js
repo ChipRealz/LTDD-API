@@ -8,7 +8,8 @@ const authMiddleware = require('../middleware/auth');
 // User applies a promotion code for discount
 router.post('/apply', authMiddleware, async (req, res) => {
   try {
-    const { code, orderId } = req.body;
+    let { code, orderId } = req.body;
+    code = code ? code.trim() : '';
     const order = await Order.findById(orderId);
     if (!order || order.userId.toString() !== req.user.userId) {
       return res.status(404).json({ message: 'Order not found' });
