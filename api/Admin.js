@@ -13,6 +13,7 @@ const { v4: uuidv4 } = require("uuid");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
+const User = require('../models/User');
 
 // Ensure environment variables are set
 if (!process.env.AUTH_EMAIL || !process.env.AUTH_PASS) {
@@ -640,6 +641,62 @@ router.get("/cash-flow/daily", adminAuthMiddleware, async (req, res) => {
       message: "Error fetching daily revenue",
       error: err.message 
     });
+  }
+});
+
+// =====================
+// Admin User Management
+// =====================
+
+// List all users
+router.get('/users', adminAuthMiddleware, async (req, res) => {
+  try {
+    console.log('Admin user management: GET /users called');
+    console.log('Headers:', req.headers);
+    const users = await User.find({}, { password: 0, __v: 0 });
+    res.status(200).json({
+      status: 'SUCCESS',
+      message: 'Users retrieved successfully',
+      data: users
+    });
+  } catch (error) {
+    console.error('Error in /admin/users:', error);
+    res.status(500).json({ status: 'FAILED', message: 'Error retrieving users', error: error.message });
+  }
+});
+
+// Get a single user by ID
+router.get('/users/:id', adminAuthMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id, { password: 0, __v: 0 });
+    if (!user) return res.status(404).json({ status: 'FAILED', message: 'User not found' });
+    res.status(200).json({ status: 'SUCCESS', data: user });
+  } catch (error) {
+    res.status(500).json({ status: 'FAILED', message: 'Error retrieving user', error: error.message });
+  }
+});
+
+// Update a user by ID
+router.patch('/users/:id', adminAuthMiddleware, async (req, res) => {
+  try {
+    const updateData = { ...req.body };
+    delete updateData.password; // Prevent password update here
+    const user = await User.findByIdAndUpdate(req.params.id, updateData, { new: true, runValidators: true, select: '-password -__v' });
+    if (!user) return res.status(404).json({ status: 'FAILED', message: 'User not found' });
+    res.status(200).json({ status: 'SUCCESS', message: 'User updated successfully', data: user });
+  } catch (error) {
+    res.status(500).json({ status: 'FAILED', message: 'Error updating user', error: error.message });
+  }
+});
+
+// Delete a user by ID
+router.delete('/users/:id', adminAuthMiddleware, async (req, res) => {
+  try {
+    const user = await User.findByIdAndDelete(req.params.id);
+    if (!user) return res.status(404).json({ status: 'FAILED', message: 'User not found' });
+    res.status(200).json({ status: 'SUCCESS', message: 'User deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ status: 'FAILED', message: 'Error deleting user', error: error.message });
   }
 });
 
