@@ -278,14 +278,15 @@ router.post('/', authMiddleware, async (req, res) => {
 
     // Intent detection: Help or What can I ask
     if (
-      /help|what can i ask|what can you do|how to use|options|commands|menu/i.test(message)
+      /help|what can i ask|what can you do|how to use|options|commands|menu|how to search|how to find/i.test(message)
     ) {
       const helpText = `
 You can ask me things like:
 • Show me top products
 • What are the best sellers?
 • Show me trending products
-• Show me products in [category]
+• Show me products in [category] (e.g., 'Show me products in toys')
+• Type a single category name (e.g., 'toys', 'electronics', 'video games') to see products in that category
 • Show me similar products to [product name]
 • What do you recommend?
 • Show my order history
