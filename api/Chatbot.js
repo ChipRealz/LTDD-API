@@ -696,6 +696,12 @@ You can ask me things like:
       error: error.message 
     });
   }
+
+  return res.json({
+    status: 'SUCCESS',
+    reply: "Sorry, I didn't quite get that. You can ask me about products, your orders, cash flow, or say 'help' to see what I can do! 😊",
+    products: []
+  });
 });
 
 // Get products by category
@@ -874,13 +880,6 @@ router.get('/recommendations', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-});
-
-// Fallback for truly unknown queries
-return res.json({
-  status: 'SUCCESS',
-  reply: "Sorry, I didn't quite get that. You can ask me about products, your orders, cash flow, or say 'help' to see what I can do! 😊",
-  products: []
 });
 
 module.exports = router; 
