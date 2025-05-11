@@ -5,6 +5,7 @@ const cloudinary = require('cloudinary').v2;
 const multer = require('multer');
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const Admin = require('../models/Admin');
+const Category = require("../models/Category");
 
 // Configure Cloudinary storage for multer
 const storage = new CloudinaryStorage({
@@ -114,6 +115,12 @@ router.post("/", upload.single('image'), async (req, res) => {
     const product = new Product(productData);
     const savedProduct = await product.save();
     
+    // Update the category to include this product
+    await Category.findByIdAndUpdate(
+      category,
+      { $push: { products: savedProduct._id } }
+    );
+
     // Send notification to admin (optional, assuming admin user ID exists)
     if (global.sendNotification) {
       // Find an admin user to send notification to
