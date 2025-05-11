@@ -15,7 +15,7 @@ router.post('/:productId', authMiddleware, async (req, res) => {
     const order = await Order.findOne({
       userId: req.user.userId,
       'items.productId': productId,
-      status: 'Delivered'
+      status: 'DELIVERED'
     });
     if (!order) return res.status(403).json({ message: 'You can only review purchased products' });
 
